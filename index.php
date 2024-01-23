@@ -1,125 +1,251 @@
 <?php
-require_once('MysqliDb.php');
-error_reporting(E_ALL);
-$action = 'adddb';
-$data = array();
+    // Exercise 8
+    include_once('MysqliDb.php');
+    error_reporting(E_ALL);
 
-function printUsers () {
-    global $db;
+    $db = new MysqliDb('localhost', 'root', '', 'p8_exercise_backend');
+    $data = array(); 
 
-    $users = $db->get ("users");
-    if ($db->count == 0) {
-        echo "<td align=center colspan=4>No users found</td>";
-        return;
+    $searchQuery = isset($_POST['search']) ? $_POST['search'] : '';
+    function printEmployees($searchQuery) {
+        global $db;
+        $db->where('1', '1');
+        
+        // Retrieve employees data by either by First Name, Last Name or Middle Name
+        if (!empty($searchQuery)) {
+            $db->where('first_name', '%' . $searchQuery . '%', 'like');
+            $db->orWhere('last_name', '%' . $searchQuery . '%', 'like');
+            $db->orWhere('middle_name', '%' . $searchQuery . '%', 'like');
+        }
+
+        $employees = $db->get('employee');
+
+        if ($db->count == 0) {
+            echo "<p>No records match</p>";
+            return;
+        }
+
+        echo "<table>";
+        echo "<tr>";
+        echo "<th>ID</th>";
+        echo "<th>First Name</th>";
+        echo "<th>Last Name</th>";
+        echo "<th>Middle Name</th>";
+        echo "<th>Birthday</th>";
+        echo "<th>Address</th>";
+        echo "<th>Action</th>";
+        echo "</tr>";
+
+        foreach ($employees as $row) {
+            echo "<tr>";
+            echo "<td>{$row['id']}</td>";
+            echo "<td>{$row['first_name']}</td>";
+            echo "<td>{$row['last_name']}</td>";
+            echo "<td>{$row['middle_name']}</td>";
+            echo "<td>{$row['birthday']}</td>";
+            echo "<td>{$row['address']}</td>";
+            echo "<td>
+                    <form method='POST'>
+                        <input type='hidden' name='id' value='{$row['id']}'>
+                        <button type='submit' name='action' value='update'>Update</button>
+                        <button type='submit' name='action' value='delete'>Delete</button>
+                    </form>
+                </td>";
+            echo "</tr>";
+        }
+        echo "</table>";
     }
-    foreach ($users as $u) {
-        echo "<tr>
-            <td>{$u['id']}</td>
-            <td>{$u['login']}</td>
-            <td>{$u['firstName']} {$u['lastName']}</td>
-            <td>
-                <a href='index.php?action=rm&id={$u['id']}'>rm</a> ::
-                <a href='index.php?action=mod&id={$u['id']}'>ed</a>
-            </td>
-        </tr>";
-    }
-}
 
-function action_adddb () {
-    global $db;
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['add'])) {
+            $data = array (
+                'first_name' => $_POST['firstname'],
+                'last_name' => $_POST['lastname'],
+                'middle_name' => $_POST['middlename'],
+                'birthday' => $_POST['birthday'],
+                'address' => $_POST['address'],
+            );
 
-    $data = Array(
-        'login' => $_POST['login'],
-        'customerId' => 1,
-        'firstName' => $_POST['firstName'],
-        'lastName' => $_POST['lastName'],
-        'password' => $db->func('SHA1(?)',Array ($_POST['password'] . 'salt123')),
-        'createdAt' => $db->now(),
-        'expires' => $db->now('+1Y')
-    );
-    $id = $db->insert ('users', $data);
-    header ("Location: index.php");
-    exit;
-}
+            $id = $db->insert('employee', $data);
 
-function action_moddb () {
-    global $db;
+            if ($id) {
+                echo "New record created successfully";
+            } else {
+                echo "Error: " . $db->getLastError();
+            }
+        } elseif (isset($_POST['action'])) {
+            $id = $_POST['id'];
 
-    $data = Array(
-        'login' => $_POST['login'],
-        'customerId' => 1,
-        'firstName' => $_POST['firstName'],
-        'lastName' => $_POST['lastName'],
-    );
-    $id = (int)$_POST['id'];
-    $db->where ("customerId",1);
-    $db->where ("id", $id);
-    $db->update ('users', $data);
-    header ("Location: index.php");
-    exit;
+            if ($_POST['action'] === 'update') {
+                $employee = $db->where('id', $id)->getOne('employee');
+                $updateId = $employee['id'];
+            } elseif ($_POST['action'] === 'delete') {
+                $db->where('id', $id);
+                if ($db->delete('employee')) {
+                    echo "Record deleted successfully";
+                } else {
+                    echo "Error deleting record: " . $db->getLastError();
+                }
+            }
+        } elseif (isset($_POST['update_record'])) {
+            $updateId = $_POST['update_id'];
 
-}
-function action_rm () {
-    global $db;
-    $id = (int)$_GET['id'];
-    $db->where ("customerId",1);
-    $db->where ("id", $id);
-    $db->delete ('users');
-    header ("Location: index.php");
-    exit;
+            $data = array (
+                'first_name' => $_POST['firstname'],
+                'last_name' => $_POST['lastname'],
+                'middle_name' => $_POST['middlename'],
+                'birthday' => $_POST['birthday'],
+                'address' => $_POST['address'],
+            );
 
-}
-function action_mod () {
-    global $db;
-    global $data;
-    global $action;
-
-    $action = 'moddb';
-    $id = (int)$_GET['id'];
-    $db->where ("id", $id);
-    $data = $db->getOne ("users");
-}
-
-$db = new Mysqlidb ('localhost', 'root', '', 'testdb');
-if ($_GET) {
-    $f = "action_".$_GET['action'];
-    if (function_exists ($f)) {
-        $f();
-    }
-}
+            $db->where('id', $updateId);
+            if ($db->update('employee', $data)) {
+                echo "Record updated successfully";
+            } else {
+                echo "Error updating record: " . $db->getLastError();
+            }
+        }
+    }   
 
 ?>
 <!DOCTYPE html>
+    <html>
+    
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="ie-edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Simple CRUD</title>
+        <style>
+            h1 {
+                text-align: center;
+            }
+            table {
+                width: 90%;
+                margin: 0 auto;
+                border-collapse: collapse;
+                margin-top: 5px;
+            }
 
-<html lang="en">
-<head>
-	<meta charset="utf-8">
-	<title>Users</title>
-</head>
-<body>
+            th, td {
+                border: 1px solid black;
+                text-align: center;
+                padding: 8px;
+            }
 
-<center>
-<h3>Users:</h3>
-<table width='50%'>
-    <tr bgcolor='#cccccc'>
-        <th>ID</th>
-        <th>Login</th>
-        <th>Name</th>
-        <th>Action</th>
-    </tr>
-    <?php printUsers();?>
+            th {
+                color: white;
+                background-color: #606C5D;
+            }
 
-</table>
-<hr width=50%>
-<form action='index.php?action=<?php echo $action?>' method=post>
-    <input type=hidden name='id' value='<?php echo $data['id']?>'>
-    <input type=text name='login' required placeholder='Login' value='<?php echo $data['login']?>'>
-    <input type=text name='firstName' required placeholder='First Name' value='<?php echo $data['firstName']?>'>
-    <input type=text name='lastName' required placeholder='Last Name' value='<?php echo $data['lastName']?>'>
-    <input type=password name='password' placeholder='Password'>
-    <input type=submit value='New User'></td>
-</form>
-</table>
-</center>
-</body>
+            tr:hover {
+                background-color: #f5f5f5;
+            }
+
+            form {
+                margin-bottom: 10px;
+            }
+
+            input[type="text"],
+            input[type="date"] {
+                width: 200px;
+                padding: 8px;
+                margin: 5px 0;
+                box-sizing: border-box;
+            }
+
+            button {
+                background-color: #739072;
+                color: white;
+                padding: 10px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background-color: #65B741;
+            }
+
+            #firstname, #lastname, #birthday, #middlename, #address {
+                display: inline-block;
+                text-align: right;
+                margin-left: 75px;
+            }
+
+            #submit {
+                margin-top: 10px;
+                margin-left: 220px;
+            }
+
+            #middlename-style {
+                margin-left: 55px;
+            }
+            
+            #birthday-style {
+                margin-left: 88px;
+            }
+
+            #address-style {
+                margin-left: 90px;
+            }
+
+            #search-form {
+                display: inline-block;
+                text-align: right;
+                margin-left: 75px;
+            }
+
+            #search, #search-button {
+                margin-right: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Exercise 8: Usage of ThingEngineer</h1>
+        <?php
+        if (isset($updateId)) {
+            $sql = "SELECT * FROM employee WHERE id = $updateId";
+            $result = $conn->query($sql);
+    
+            if ($result->num_rows > 0) {
+                $row = $result->fetch_assoc();
+                $empFirstName = $row['first_name'];
+                $empLastName= $row['last_name'];
+                $empMiddleName = $row['middle_name'];
+                $empBirthday = $row['birthday'];
+                $empAddress = $row['address'];
+            }
+        } else {
+            $empFirstName = $empLastName = $empMiddleName = $empBirthday = $empAddress = "";
+        }
+        ?>
+        <form method="POST">
+            <label for="firstname" id="firstname">First Name:</label>
+            <input type="text" id="firstname" name="firstname" value="<?php echo $empFirstName; ?>"><br>
+            <label for="lastname" id="lastname">Last Name:</label>
+            <input type="text" id="lastname" name="lastname" value="<?php echo $empLastName; ?>"><br>
+            <label for="middlename" id="middlename">Middle Name:</label>
+            <input type="text" id="middlename-style" name="middlename" value="<?php echo $empMiddleName; ?>"><br>
+            <label for="birthday" id="birthday">Birthday:</label>
+            <input type="date" id="birthday-style" name="birthday" value="<?php echo $empBirthday; ?>"><br>
+            <label for="address" id="address">Address:</label>
+            <input type="text" id="address-style" name="address" value="<?php echo $empAddress; ?>"><br>
+            <?php
+            if (isset($updateId)) {
+                echo "<input type='hidden' name='update_id' value='{$updateId}'>";
+                echo "<button type='submit' name='update_record'>Update</button>";
+            } else {
+                echo "<button type='submit' id='submit' name='add'>Submit</button>";
+            }
+            ?>
+        </form>
+        <br>
+        <form method="POST" id="search-form">
+            <input type="text" id="search" name="search" placeholder="Enter your search query" value="<?php echo $searchQuery; ?>">
+            <button type="submit" id="search-button">Search</button>
+        </form>
+        <br>
+        <?php printEmployees($searchQuery); ?>
+    </body>
 </html>

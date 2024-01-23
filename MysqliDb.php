@@ -1203,7 +1203,7 @@ class MysqliDb
 
 		// Build SQL Syntax
 		$sqlSyntax = sprintf('LOAD XML INFILE \'%s\' INTO TABLE %s',
-								 $importFile, $table);
+								$importFile, $table);
 
 		// FIELDS
 		if(isset($settings["rowTag"])) {
